@@ -1,50 +1,99 @@
-#!/bin/bash
+#!/usr/bin/with-contenv bashio
 
-echo "Starting Web Browser with noVNC..."
+# Get configuration options
+RESOLUTION=$(bashio::config 'resolution' '1920x1080')
+HOMEPAGE=$(bashio::config 'homepage' 'https://google.com')
+PASSWORD=$(bashio::config 'password')
+SCALING=$(bashio::config 'scaling' 'remote')
+COMPRESSION=$(bashio::config 'compression' '6')
+QUALITY=$(bashio::config 'quality' '6')
+
+bashio::log.info "Starting Web Browser with noVNC..."
+bashio::log.info "Resolution: $RESOLUTION"
+bashio::log.info "Homepage: $HOMEPAGE"
+
+# Parse resolution
+IFS='x' read -ra RES <<< "$RESOLUTION"
+WIDTH=${RES[0]}
+HEIGHT=${RES[1]}
+DEPTH=${RES[2]:-24}
+
+bashio::log.info "Starting virtual display ${WIDTH}x${HEIGHT}x${DEPTH}"
 
 # Start virtual display
-Xvfb :1 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+Xvfb :1 -screen 0 ${WIDTH}x${HEIGHT}x${DEPTH} -ac +extension GLX +render -noreset &
 XVFB_PID=$!
 
 # Wait for X server
-sleep 2
+sleep 3
 
 # Start window manager
 DISPLAY=:1 openbox &
 
+# Prepare VNC command
+VNC_CMD="x11vnc -display :1 -listen localhost -xkb -ncache 10 -forever -shared"
+
+# Add password if configured
+if bashio::config.has_value 'password'; then
+    bashio::log.info "Setting up VNC password protection"
+    echo "$PASSWORD" | x11vnc -storepasswd /tmp/vncpass
+    VNC_CMD="$VNC_CMD -rfbauth /tmp/vncpass"
+else
+    bashio::log.info "No VNC password set"
+    VNC_CMD="$VNC_CMD -nopw"
+fi
+
 # Start VNC server
-x11vnc -display :1 -nopw -listen localhost -xkb -ncache 10 -forever -shared &
+$VNC_CMD &
 VNC_PID=$!
 
 # Wait for VNC
-sleep 2
+sleep 3
 
 # Start noVNC web server
+bashio::log.info "Starting noVNC web server on port 6080"
 cd /opt/novnc && python3 -m websockify --web . 6080 localhost:5900 &
 NOVNC_PID=$!
 
-# Wait a bit more
+# Wait for noVNC
 sleep 3
 
 # Start Chromium browser
-DISPLAY=:1 chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --start-maximized --disable-infobars https://google.com &
+bashio::log.info "Starting Chromium browser"
+DISPLAY=:1 chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --start-maximized --disable-infobars --disable-web-security --disable-features=VizDisplayCompositor "$HOMEPAGE" &
 BROWSER_PID=$!
 
-echo "All services started. Access via http://YOUR_HA_IP:6080/vnc.html"
+bashio::log.info "All services started successfully!"
+bashio::log.info "Access via Home Assistant UI or http://YOUR_HA_IP:6080/vnc.html"
+
+# Function to cleanup on exit
+cleanup() {
+    bashio::log.info "Shutting down services..."
+    kill $BROWSER_PID $NOVNC_PID $VNC_PID $XVFB_PID 2>/dev/null
+    exit 0
+}
+
+# Set up signal handlers
+trap cleanup SIGTERM SIGINT
 
 # Keep container running and monitor services
 while true; do
     if ! kill -0 $XVFB_PID 2>/dev/null; then
-        echo "Xvfb died, restarting container..."
+        bashio::log.error "Xvfb died, restarting container..."
         exit 1
     fi
     if ! kill -0 $VNC_PID 2>/dev/null; then
-        echo "VNC died, restarting container..."
+        bashio::log.error "VNC died, restarting container..."
         exit 1
     fi
     if ! kill -0 $NOVNC_PID 2>/dev/null; then
-        echo "noVNC died, restarting container..."
+        bashio::log.error "noVNC died, restarting container..."
         exit 1
+    fi
+    if ! kill -0 $BROWSER_PID 2>/dev/null; then
+        bashio::log.warning "Browser died, restarting..."
+        DISPLAY=:1 chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --start-maximized --disable-infobars --disable-web-security --disable-features=VizDisplayCompositor "$HOMEPAGE" &
+        BROWSER_PID=$!
     fi
     sleep 10
 done

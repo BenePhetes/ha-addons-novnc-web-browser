@@ -1,24 +1,39 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Install packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install required packages
+RUN apk add --no-cache \
     xvfb \
     x11vnc \
     openbox \
-    python3-websockify \
-    firefox-esr \
+    chromium \
+    python3 \
+    py3-pip \
+    git \
+    bash \
     curl \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/cache/apk/*
 
-# Download noVNC
-RUN curl -L https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz | \
-    tar -xz -C /tmp && \
-    mv /tmp/noVNC-1.3.0 /opt/novnc && \
-    rm -rf /tmp/*
+# Install noVNC
+WORKDIR /opt
+RUN git clone https://github.com/novnc/noVNC.git novnc \
+    && git clone https://github.com/novnc/websockify.git novnc/utils/websockify
 
-# Copy rootfs
-COPY rootfs/ /
+# Install websockify
+RUN pip3 install websockify
 
+# Copy run script
+COPY run.sh /
+RUN chmod a+x /run.sh
+
+# Create necessary directories
+RUN mkdir -p /tmp/.X11-unix \
+    && chmod 1777 /tmp/.X11-unix
+
+# Set environment variables
+ENV DISPLAY=:1
+
+# Expose port
 EXPOSE 6080
+
+CMD [ "/run.sh" ]
