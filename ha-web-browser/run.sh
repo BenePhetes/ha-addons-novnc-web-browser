@@ -19,8 +19,8 @@ VNC_PID=$!
 # Wait for VNC
 sleep 3
 
-# Start noVNC websockify
-cd /opt/novnc && python3 -m websockify --web . 6080 localhost:5900 &
+# Start noVNC using system websockify
+cd /opt/novnc && /usr/bin/websockify --web . 6080 localhost:5900 &
 NOVNC_PID=$!
 
 # Wait for websockify
@@ -31,20 +31,14 @@ DISPLAY=:1 firefox-esr --new-instance --no-remote --kiosk https://google.com &
 BROWSER_PID=$!
 
 echo "Services started successfully!"
-echo "Access browser at: http://YOUR_HA_IP:6080/vnc.html"
+echo "Access browser at: http://localhost:6080/vnc.html"
 
 # Monitor services
 while true; do
-    if ! kill -0 $XVFB_PID 2>/dev/null; then
-        echo "Xvfb died, exiting..."
-        exit 1
-    fi
-    if ! kill -0 $VNC_PID 2>/dev/null; then
-        echo "VNC died, exiting..."
-        exit 1
-    fi
-    if ! kill -0 $NOVNC_PID 2>/dev/null; then
-        echo "noVNC died, exiting..."
+    if ! kill -0 $XVFB_PID 2>/dev/null || \
+       ! kill -0 $VNC_PID 2>/dev/null || \
+       ! kill -0 $NOVNC_PID 2>/dev/null; then
+        echo "A service died, restarting container..."
         exit 1
     fi
     sleep 15
