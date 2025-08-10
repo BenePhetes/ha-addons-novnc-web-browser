@@ -1,17 +1,19 @@
 FROM ghcr.io/home-assistant/amd64-base-debian:latest
 
-# Install all packages at once to avoid dependency issues
+# Install base packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
     openbox \
     python3 \
     python3-pip \
-    python3-websockify \
     firefox-esr \
     curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Force install websockify
+RUN pip3 install --break-system-packages --no-cache-dir websockify
 
 # Download noVNC
 RUN curl -L https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz | \
