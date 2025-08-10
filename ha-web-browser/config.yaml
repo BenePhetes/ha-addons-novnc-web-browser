@@ -1,5 +1,5 @@
 name: "Web Browser (noVNC)"
-version: "1.1.1"
+version: "1.1.2"
 slug: "web_browser_novnc"
 description: "Web browser accessible through noVNC in Home Assistant dashboard"
 url: "https://github.com/BenePhetes/ha-addons-novnc-web-browser"
@@ -30,4 +30,3 @@ schema:
   scaling: "list(off|local|remote)"
   compression: "int(0,9)"
   quality: "int(0,9)"
-image: "ghcr.io/{arch}-addon-web-browser-novnc"
