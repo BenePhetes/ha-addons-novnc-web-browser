@@ -75,15 +75,8 @@ bashio::log.info "Starting VNC server..."
 # Add password if configured
 if bashio::config.has_value 'password' && [ -n "$PASSWORD" ]; then
     bashio::log.info "Setting up VNC password protection"
-    mkdir -p ~/.vnc
-    echo "$PASSWORD" | x11vnc -storepasswd ~/.vnc/passwd
-    if [ $? -eq 0 ]; then
-        bashio::log.info "VNC password set successfully"
-        x11vnc -display :1 -listen localhost -xkb -forever -shared -rfbauth ~/.vnc/passwd -quiet &
-    else
-        bashio::log.error "Failed to set VNC password, using no password"
-        x11vnc -display :1 -listen localhost -xkb -forever -shared -nopw -quiet &
-    fi
+    # Use x11vnc's built-in password option instead of storing to file
+    x11vnc -display :1 -listen localhost -xkb -forever -shared -passwd "$PASSWORD" -quiet &
 else
     bashio::log.info "No VNC password set"
     x11vnc -display :1 -listen localhost -xkb -forever -shared -nopw -quiet &
