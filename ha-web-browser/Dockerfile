@@ -13,6 +13,7 @@ RUN apk add --no-cache \
     bash \
     curl \
     websockify \
+    dbus \
     && rm -rf /var/cache/apk/*
 
 # Install noVNC
@@ -39,25 +40,42 @@ WIDTH=${RES[0]}
 HEIGHT=${RES[1]}
 DEPTH=${RES[2]:-24}
 
+# Create necessary directories
+mkdir -p /tmp/.X11-unix /var/run/dbus
+
+# Set environment variables to suppress graphics errors
+export DISPLAY=:1
+export CHROME_LOG_FILE=/dev/null
+export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
+
 bashio::log.info "Starting virtual display ${WIDTH}x${HEIGHT}x${DEPTH}"
 
-# Start virtual display
-Xvfb :1 -screen 0 ${WIDTH}x${HEIGHT}x${DEPTH} -ac +extension GLX +render -noreset &
+# Start D-Bus (suppress output to reduce noise)
+dbus-daemon --system --fork 2>/dev/null || true
+
+# Start virtual display with better error handling
+Xvfb :1 -screen 0 ${WIDTH}x${HEIGHT}x${DEPTH} -ac +extension GLX +render -noreset -nolisten tcp 2>/dev/null &
 XVFB_PID=$!
 
 # Wait for X server
 sleep 3
 
+# Check if X server started
+if ! kill -0 $XVFB_PID 2>/dev/null; then
+    bashio::log.error "Failed to start Xvfb"
+    exit 1
+fi
+
 # Start window manager
-DISPLAY=:1 openbox &
+openbox --sm-disable 2>/dev/null &
 
 # Prepare VNC command
-VNC_CMD="x11vnc -display :1 -listen localhost -xkb -ncache 10 -forever -shared"
+VNC_CMD="x11vnc -display :1 -listen localhost -xkb -ncache 10 -forever -shared -quiet"
 
 # Add password if configured
 if bashio::config.has_value 'password'; then
     bashio::log.info "Setting up VNC password protection"
-    echo "$PASSWORD" | x11vnc -storepasswd /tmp/vncpass
+    echo "$PASSWORD" | x11vnc -storepasswd /tmp/vncpass 2>/dev/null
     VNC_CMD="$VNC_CMD -rfbauth /tmp/vncpass"
 else
     bashio::log.info "No VNC password set"
@@ -65,26 +83,67 @@ else
 fi
 
 # Start VNC server
-$VNC_CMD &
+$VNC_CMD 2>/dev/null &
 VNC_PID=$!
 
 # Wait for VNC
 sleep 3
 
+# Check if VNC started
+if ! kill -0 $VNC_PID 2>/dev/null; then
+    bashio::log.error "Failed to start VNC server"
+    exit 1
+fi
+
 # Start noVNC web server
 bashio::log.info "Starting noVNC web server on port 6080"
-cd /opt/novnc && python3 -m websockify --web . 6080 localhost:5900 &
+cd /opt/novnc && python3 -m websockify --web . 6080 localhost:5900 2>/dev/null &
 NOVNC_PID=$!
 
 # Wait for noVNC
 sleep 3
 
-# Start Chromium browser
+# Check if noVNC started
+if ! kill -0 $NOVNC_PID 2>/dev/null; then
+    bashio::log.error "Failed to start noVNC"
+    exit 1
+fi
+
+# Start Chromium browser with extensive compatibility flags
 bashio::log.info "Starting Chromium browser"
-DISPLAY=:1 chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --start-maximized --disable-infobars --disable-web-security --disable-features=VizDisplayCompositor "$HOMEPAGE" &
+chromium \
+    --no-sandbox \
+    --disable-dev-shm-usage \
+    --disable-gpu \
+    --disable-gpu-sandbox \
+    --disable-software-rasterizer \
+    --disable-background-timer-throttling \
+    --disable-backgrounding-occluded-windows \
+    --disable-renderer-backgrounding \
+    --disable-features=TranslateUI,VizDisplayCompositor,VizHitTestSurfaceLayer \
+    --disable-extensions \
+    --disable-plugins \
+    --disable-web-security \
+    --disable-infobars \
+    --no-first-run \
+    --no-default-browser-check \
+    --start-maximized \
+    --window-size=${WIDTH},${HEIGHT} \
+    --ignore-gpu-blacklist \
+    --ignore-gpu-blocklist \
+    --disable-logging \
+    --log-level=3 \
+    --silent \
+    --disable-breakpad \
+    --disable-crash-reporter \
+    --disable-hang-monitor \
+    --disable-prompt-on-repost \
+    --force-color-profile=srgb \
+    "$HOMEPAGE" 2>/dev/null &
 BROWSER_PID=$!
 
 bashio::log.info "All services started successfully!"
+bashio::log.info "Access via Home Assistant UI or http://YOUR_HA_IP:6080/vnc.html"
 
 # Function to cleanup on exit
 cleanup() {
@@ -112,7 +171,35 @@ while true; do
     fi
     if ! kill -0 $BROWSER_PID 2>/dev/null; then
         bashio::log.warning "Browser died, restarting..."
-        DISPLAY=:1 chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --start-maximized --disable-infobars --disable-web-security --disable-features=VizDisplayCompositor "$HOMEPAGE" &
+        chromium \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-gpu \
+            --disable-gpu-sandbox \
+            --disable-software-rasterizer \
+            --disable-background-timer-throttling \
+            --disable-backgrounding-occluded-windows \
+            --disable-renderer-backgrounding \
+            --disable-features=TranslateUI,VizDisplayCompositor,VizHitTestSurfaceLayer \
+            --disable-extensions \
+            --disable-plugins \
+            --disable-web-security \
+            --disable-infobars \
+            --no-first-run \
+            --no-default-browser-check \
+            --start-maximized \
+            --window-size=${WIDTH},${HEIGHT} \
+            --ignore-gpu-blacklist \
+            --ignore-gpu-blocklist \
+            --disable-logging \
+            --log-level=3 \
+            --silent \
+            --disable-breakpad \
+            --disable-crash-reporter \
+            --disable-hang-monitor \
+            --disable-prompt-on-repost \
+            --force-color-profile=srgb \
+            "$HOMEPAGE" 2>/dev/null &
         BROWSER_PID=$!
     fi
     sleep 10
