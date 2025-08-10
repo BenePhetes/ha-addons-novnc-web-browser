@@ -42,19 +42,16 @@ DEPTH=${RES[2]:-24}
 
 # Create necessary directories
 mkdir -p /tmp/.X11-unix /var/run/dbus
+chmod 1777 /tmp/.X11-unix
 
 # Set environment variables to suppress graphics errors
 export DISPLAY=:1
 export CHROME_LOG_FILE=/dev/null
-export DBUS_SYSTEM_BUS_ADDRESS=unix:path=/var/run/dbus/system_bus_socket
 
 bashio::log.info "Starting virtual display ${WIDTH}x${HEIGHT}x${DEPTH}"
 
-# Start D-Bus (suppress output to reduce noise)
-dbus-daemon --system --fork 2>/dev/null || true
-
 # Start virtual display with better error handling
-Xvfb :1 -screen 0 ${WIDTH}x${HEIGHT}x${DEPTH} -ac +extension GLX +render -noreset -nolisten tcp 2>/dev/null &
+Xvfb :1 -screen 0 ${WIDTH}x${HEIGHT}x${DEPTH} -ac +extension GLX +render -noreset -nolisten tcp &
 XVFB_PID=$!
 
 # Wait for X server
@@ -66,24 +63,32 @@ if ! kill -0 $XVFB_PID 2>/dev/null; then
     exit 1
 fi
 
-# Start window manager
-openbox --sm-disable 2>/dev/null &
+bashio::log.info "Xvfb started successfully (PID: $XVFB_PID)"
 
-# Prepare VNC command
-VNC_CMD="x11vnc -display :1 -listen localhost -xkb -ncache 10 -forever -shared -quiet"
+# Start window manager
+openbox --sm-disable &
+sleep 1
+
+# Prepare VNC command - simplified approach
+bashio::log.info "Starting VNC server..."
 
 # Add password if configured
-if bashio::config.has_value 'password'; then
+if bashio::config.has_value 'password' && [ -n "$PASSWORD" ]; then
     bashio::log.info "Setting up VNC password protection"
-    echo "$PASSWORD" | x11vnc -storepasswd /tmp/vncpass 2>/dev/null
-    VNC_CMD="$VNC_CMD -rfbauth /tmp/vncpass"
+    mkdir -p ~/.vnc
+    echo "$PASSWORD" | x11vnc -storepasswd ~/.vnc/passwd
+    if [ $? -eq 0 ]; then
+        bashio::log.info "VNC password set successfully"
+        x11vnc -display :1 -listen localhost -xkb -forever -shared -rfbauth ~/.vnc/passwd -quiet &
+    else
+        bashio::log.error "Failed to set VNC password, using no password"
+        x11vnc -display :1 -listen localhost -xkb -forever -shared -nopw -quiet &
+    fi
 else
     bashio::log.info "No VNC password set"
-    VNC_CMD="$VNC_CMD -nopw"
+    x11vnc -display :1 -listen localhost -xkb -forever -shared -nopw -quiet &
 fi
 
-# Start VNC server
-$VNC_CMD 2>/dev/null &
 VNC_PID=$!
 
 # Wait for VNC
@@ -95,9 +100,12 @@ if ! kill -0 $VNC_PID 2>/dev/null; then
     exit 1
 fi
 
+bashio::log.info "VNC server started successfully (PID: $VNC_PID)"
+
 # Start noVNC web server
 bashio::log.info "Starting noVNC web server on port 6080"
-cd /opt/novnc && python3 -m websockify --web . 6080 localhost:5900 2>/dev/null &
+cd /opt/novnc
+python3 -m websockify --web . 6080 localhost:5900 &
 NOVNC_PID=$!
 
 # Wait for noVNC
@@ -108,6 +116,8 @@ if ! kill -0 $NOVNC_PID 2>/dev/null; then
     bashio::log.error "Failed to start noVNC"
     exit 1
 fi
+
+bashio::log.info "noVNC started successfully (PID: $NOVNC_PID)"
 
 # Start Chromium browser with extensive compatibility flags
 bashio::log.info "Starting Chromium browser"
@@ -120,28 +130,29 @@ chromium \
     --disable-background-timer-throttling \
     --disable-backgrounding-occluded-windows \
     --disable-renderer-backgrounding \
-    --disable-features=TranslateUI,VizDisplayCompositor,VizHitTestSurfaceLayer \
+    --disable-features=TranslateUI,VizDisplayCompositor \
     --disable-extensions \
-    --disable-plugins \
     --disable-web-security \
     --disable-infobars \
     --no-first-run \
     --no-default-browser-check \
     --start-maximized \
     --window-size=${WIDTH},${HEIGHT} \
-    --ignore-gpu-blacklist \
-    --ignore-gpu-blocklist \
     --disable-logging \
     --log-level=3 \
     --silent \
-    --disable-breakpad \
-    --disable-crash-reporter \
-    --disable-hang-monitor \
-    --disable-prompt-on-repost \
-    --force-color-profile=srgb \
-    "$HOMEPAGE" 2>/dev/null &
+    "$HOMEPAGE" &
 BROWSER_PID=$!
 
+sleep 2
+
+# Check if browser started
+if ! kill -0 $BROWSER_PID 2>/dev/null; then
+    bashio::log.error "Failed to start Chromium browser"
+    exit 1
+fi
+
+bashio::log.info "Chromium started successfully (PID: $BROWSER_PID)"
 bashio::log.info "All services started successfully!"
 bashio::log.info "Access via Home Assistant UI or http://YOUR_HA_IP:6080/vnc.html"
 
@@ -180,26 +191,18 @@ while true; do
             --disable-background-timer-throttling \
             --disable-backgrounding-occluded-windows \
             --disable-renderer-backgrounding \
-            --disable-features=TranslateUI,VizDisplayCompositor,VizHitTestSurfaceLayer \
+            --disable-features=TranslateUI,VizDisplayCompositor \
             --disable-extensions \
-            --disable-plugins \
             --disable-web-security \
             --disable-infobars \
             --no-first-run \
             --no-default-browser-check \
             --start-maximized \
             --window-size=${WIDTH},${HEIGHT} \
-            --ignore-gpu-blacklist \
-            --ignore-gpu-blocklist \
             --disable-logging \
             --log-level=3 \
             --silent \
-            --disable-breakpad \
-            --disable-crash-reporter \
-            --disable-hang-monitor \
-            --disable-prompt-on-repost \
-            --force-color-profile=srgb \
-            "$HOMEPAGE" 2>/dev/null &
+            "$HOMEPAGE" &
         BROWSER_PID=$!
     fi
     sleep 10
