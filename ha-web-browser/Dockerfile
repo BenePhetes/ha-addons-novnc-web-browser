@@ -1,4 +1,4 @@
-ARG BUILD_FROM
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
 FROM $BUILD_FROM
 
 # Install required packages
@@ -12,15 +12,13 @@ RUN apk add --no-cache \
     git \
     bash \
     curl \
+    websockify \
     && rm -rf /var/cache/apk/*
 
 # Install noVNC
 WORKDIR /opt
 RUN git clone https://github.com/novnc/noVNC.git novnc \
     && git clone https://github.com/novnc/websockify.git novnc/utils/websockify
-
-# Install websockify
-RUN pip3 install websockify
 
 # Copy run script
 COPY run.sh /
