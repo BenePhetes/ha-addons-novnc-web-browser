@@ -1,7 +1,7 @@
 name: "Web Browser (noVNC)"
-version: "1.0.4"
+version: "1.0.5"
 slug: "web_browser_novnc"
-description: "Simple web browser using noVNC"
+description: "Web browser accessible through noVNC in Home Assistant dashboard"
 url: "https://github.com/BenePhetes/ha-addons-novnc-web-browser"
 arch:
   - amd64
@@ -9,7 +9,7 @@ startup: application
 boot: manual
 ports:
   6080/tcp: 6080
-webui: "http://[HOST]:[PORT:6080]/vnc.html?autoconnect=true"
+webui: "http://[HOST]:[PORT:6080]/vnc.html?autoconnect=true&resize=scale"
 ingress: true
 panel_icon: mdi:web
 panel_title: "Web Browser"
