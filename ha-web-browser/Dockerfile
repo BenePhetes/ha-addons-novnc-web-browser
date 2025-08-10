@@ -1,40 +1,33 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# First, let's see what we're working with
-RUN echo "=== DEBUG INFO ===" && \
-    cat /etc/os-release && \
-    echo "=== AVAILABLE PACKAGES ===" && \
-    apk search chromium | head -5 && \
-    apk search websockify | head -5 && \
-    apk search novnc | head -5
+# Install required packages using apt (Debian base)
+RUN apt-get update && apt-get install -y \
+    chromium \
+    xvfb \
+    x11vnc \
+    python3 \
+    python3-pip \
+    openbox \
+    supervisor \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install packages one by one to see which fails
-RUN apk update && \
-    apk add --no-cache chromium || echo "CHROMIUM FAILED" && \
-    apk add --no-cache xvfb || echo "XVFB FAILED" && \
-    apk add --no-cache x11vnc || echo "X11VNC FAILED" && \
-    apk add --no-cache supervisor || echo "SUPERVISOR FAILED"
+# Install websockify via pip
+RUN pip3 install websockify
 
-# Try alternative packages for websockify and novnc
-RUN apk add --no-cache python3 py3-pip && \
-    pip3 install websockify || echo "WEBSOCKIFY PIP FAILED"
+# Create directories
+RUN mkdir -p /etc/supervisor/conf.d /usr/share/novnc
 
-# Copy our script
-COPY run.sh /run.sh
+# Download noVNC
+RUN curl -L https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz | tar -xz -C /tmp && \
+    mv /tmp/noVNC-1.3.0/* /usr/share/novnc/ && \
+    rm -rf /tmp/noVNC-1.3.0
 
-# Make it executable and debug
-RUN chmod +x /run.sh && \
-    echo "=== SCRIPT DEBUG ===" && \
-    ls -la /run.sh && \
-    file /run.sh && \
-    head -3 /run.sh
+# Copy configuration
+COPY rootfs/ /
 
-# Simple test script instead
-RUN echo '#!/bin/bash' > /test.sh && \
-    echo 'echo "Test script works"' >> /test.sh && \
-    echo 'sleep infinity' >> /test.sh && \
-    chmod +x /test.sh
+# Expose port
+EXPOSE 6080
 
-# Try both scripts
-CMD ["/test.sh"]
+ENTRYPOINT ["/init"]

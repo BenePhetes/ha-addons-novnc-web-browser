@@ -1,5 +1,5 @@
 name: "Web Browser (noVNC)"
-version: "1.0.1"
+version: "1.0.2"
 slug: "web_browser_novnc"
 description: "Simple web browser using noVNC - access any website through Home Assistant"
 url: "https://github.com/BenePhetes/ha-addons-novnc-web-browser"
