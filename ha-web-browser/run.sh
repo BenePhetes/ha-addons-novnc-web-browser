@@ -8,6 +8,10 @@ SCALING=$(bashio::config 'scaling')
 COMPRESSION=$(bashio::config 'compression')
 QUALITY=$(bashio::config 'quality')
 
+# Define ports
+VNC_PORT=5900
+NO_VNC_PORT=6080
+
 bashio::log.info "Starting Web Browser Add-on..."
 bashio::log.info "Resolution: ${RESOLUTION}"
 bashio::log.info "Homepage: ${HOMEPAGE}"
@@ -41,7 +45,7 @@ fluxbox &
 
 # Start VNC Server
 bashio::log.info "Starting VNC server..."
-x11vnc -display :0 -xkb -rfbport 5900 -shared -forever -o /var/log/x11vnc.log ${VNC_ARGS} &
+x11vnc -display :0 -xkb -rfbport ${VNC_PORT} -shared -forever -o /var/log/x11vnc.log ${VNC_ARGS} &
 VNC_PID=$!
 
 # Start websockify (VNC to WebSocket bridge)
@@ -83,7 +87,7 @@ cleanup() {
 trap cleanup SIGTERM SIGINT
 
 # Keep the container running and monitor services
-while true do
+while true; do  # Fixed: added semicolon
     # Check if services are still running
     if ! kill -0 $XVFB_PID 2>/dev/null; then
         bashio::log.error "Xvfb died, restarting..."
