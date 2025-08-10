@@ -1,0 +1,31 @@
+#!/command/with-contenv bashio
+
+bashio::log.info "Starting Web Browser addon..."
+
+# Start virtual display in background
+Xvfb :1 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
+
+# Wait for X server
+sleep 3
+
+# Start window manager
+DISPLAY=:1 openbox &
+
+# Start VNC server
+x11vnc -display :1 -nopw -listen localhost -xkb -ncache 10 -forever -shared &
+
+# Wait for VNC
+sleep 3
+
+# Start noVNC
+cd /opt/novnc && /usr/bin/websockify --web . 6080 localhost:5900 &
+
+# Start Firefox
+DISPLAY=:1 firefox-esr --new-instance --no-remote --kiosk https://google.com &
+
+bashio::log.info "All services started"
+
+# Keep running
+while true; do
+    sleep 30
+done
