@@ -11,6 +11,7 @@ arch:
 startup: application
 boot: manual
 init: false
+image: "ghcr.io/home-assistant/{arch}-base"
 options:
   resolution: "1920x1080"
   homepage: "https://google.com"
