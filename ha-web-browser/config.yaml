@@ -1,0 +1,35 @@
+name: "Web Browser (noVNC)"
+version: "1.0.0"
+slug: "web_browser_novnc"
+description: "Full web browser using noVNC - access any website through Home Assistant"
+url: "https://github.com/BenePhetes/ha-addons-novnc-web-browser"
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+startup: application
+boot: manual
+init: false
+options:
+  resolution: "1920x1080"
+  homepage: "https://google.com"
+  password: ""
+  scaling: "remote"
+  compression: 6
+  quality: 6
+schema:
+  resolution: list(1024x768|1280x720|1920x1080|1366x768|1440x900|1600x900|1680x1050)
+  homepage: url
+  password: password?
+  scaling: list(off|local|remote)
+  compression: int(0,9)
+  quality: int(0,9)
+ports:
+  6080/tcp: 6080
+ports_description:
+  6080/tcp: "noVNC web interface"
+webui: "http://[HOST]:[PORT:6080]/vnc.html?autoconnect=true&resize=scale"
+ingress: true
+panel_icon: mdi:web
+panel_title: "Web Browser"
