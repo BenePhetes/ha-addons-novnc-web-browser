@@ -1,27 +1,42 @@
 FROM ghcr.io/home-assistant/amd64-base-debian:latest
 
-# Install required packages
-RUN apt-get update && apt-get install -y \
-    chromium \
+# Install packages in stages to avoid timeouts
+RUN apt-get update
+
+# Install X11 and VNC packages first
+RUN apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
+    openbox \
+    && apt-get clean
+
+# Install Python and networking tools
+RUN apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    openbox \
+    curl \
     wget \
-    && pip3 install websockify \
+    && apt-get clean
+
+# Install websockify
+RUN pip3 install --no-cache-dir websockify
+
+# Try Firefox ESR instead of Chromium (lighter and more reliable)
+RUN apt-get install -y --no-install-recommends \
+    firefox-esr \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Download and setup noVNC
-RUN wget -qO- https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz | tar xz \
-    && mv noVNC-1.3.0 /opt/novnc \
-    && chmod +x /opt/novnc/utils/novnc_proxy
+# Download noVNC
+RUN curl -L https://github.com/novnc/noVNC/archive/v1.3.0.tar.gz | \
+    tar -xz -C /tmp && \
+    mv /tmp/noVNC-1.3.0 /opt/novnc && \
+    rm -rf /tmp/*
 
-# Copy startup script
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
+# Copy and setup startup script
+COPY run.sh /run.sh
+RUN chmod +x /run.sh
 
 EXPOSE 6080
 
-CMD ["/start.sh"]
+CMD ["/run.sh"]
