@@ -1,12 +1,45 @@
-#!/command/with-contenv bashio
+```bash
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+set -e
 
-# Create directories for the X server
-mkdir -p /tmp/.X11-unix
-chmod 1777 /tmp/.X11-unix
+bashio::log.info "Checking dependencies..."
 
-# Clone noVNC repository only if it doesn't already exist
-if [ ! -d /opt/novnc ]; then
-    bashio::log.info "Cloning noVNC repository..."
-    git clone https://github.com/novnc/noVNC.git /opt/novnc
-    git clone https://github.com/novnc/websockify.git /opt/novnc/utils/websockify
+# Check if Xpra is installed
+if ! command -v xpra &> /dev/null; then
+    bashio::log.error "Xpra is not installed!"
+    exit 1
 fi
+
+# Check browser selection
+BROWSER=$(bashio::config 'browser')
+bashio::log.info "Selected browser: ${BROWSER}"
+
+if [ "$BROWSER" = "brave" ]; then
+    if ! command -v brave-browser &> /dev/null; then
+        bashio::log.error "Brave browser is not installed!"
+        exit 1
+    fi
+    bashio::log.info "Brave browser found at: $(which brave-browser)"
+elif [ "$BROWSER" = "opera" ]; then
+    if ! command -v opera &> /dev/null; then
+        bashio::log.error "Opera browser is not installed!"
+        exit 1
+    fi
+    bashio::log.info "Opera browser found at: $(which opera)"
+else
+    bashio::log.error "Unknown browser: ${BROWSER}"
+    exit 1
+fi
+
+# Check URL
+URL=$(bashio::config 'url')
+bashio::log.info "Target URL: ${URL}"
+
+# Create runtime directory
+export XDG_RUNTIME_DIR="/run/user/0"
+mkdir -p "${XDG_RUNTIME_DIR}"
+chmod 700 "${XDG_RUNTIME_DIR}"
+
+bashio::log.info "All dependencies checked successfully!"
+```

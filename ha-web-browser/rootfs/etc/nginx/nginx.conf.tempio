@@ -1,36 +1,91 @@
+```nginx
 worker_processes 1;
 pid /var/run/nginx.pid;
-error_log stderr;
+error_log stderr info;
 daemon off;
 
 events {
     worker_connections 1024;
+    use epoll;
 }
 
 http {
-    access_log stdout;
-    
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /proc/1/fd/1 main;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+    client_max_body_size 100M;
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript 
+               application/json application/javascript application/xml+rss 
+               application/rss+xml font/truetype font/opentype 
+               application/vnd.ms-fontobject image/svg+xml;
+
     upstream xpra {
         server 127.0.0.1:10000;
+        keepalive 32;
     }
-    
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
     server {
         listen 8099 default_server;
-        
+        server_name _;
+
+        # Increase buffer sizes for WebSocket
+        proxy_buffer_size 128k;
+        proxy_buffers 4 256k;
+        proxy_busy_buffers_size 256k;
+
         location / {
-            proxy_pass http://xpra/;
+            proxy_pass http://xpra;
             proxy_http_version 1.1;
+            
+            # WebSocket headers
             proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
+            proxy_set_header Connection $connection_upgrade;
+            
+            # Standard proxy headers
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
             
-            # Timeouts
+            # Timeouts - important for WebSocket
             proxy_connect_timeout 7d;
             proxy_send_timeout 7d;
             proxy_read_timeout 7d;
+            
+            # Buffering
+            proxy_buffering off;
+            proxy_request_buffering off;
+        }
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
         }
     }
 }
+```

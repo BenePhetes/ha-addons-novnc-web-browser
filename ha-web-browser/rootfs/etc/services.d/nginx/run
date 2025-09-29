@@ -1,11 +1,23 @@
-#!/command/with-contenv bashio
+```bash
+#!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
+set -e
 
-# Generate the nginx config from the tempio template using the ingress port
-bashio::var.json \
-    port "$(bashio::addon.ingress_port)" \
-    | tempio \
-        -template /etc/nginx.conf.tempio \
-        -out /etc/nginx.conf
+bashio::log.info "Waiting for Xpra to start..."
 
-# Start Nginx with the generated config file
-exec nginx -c /etc/nginx.conf
+# Wait for Xpra to be ready
+RETRIES=30
+until curl -sf http://127.0.0.1:10000 > /dev/null 2>&1; do
+    RETRIES=$((RETRIES - 1))
+    if [ $RETRIES -eq 0 ]; then
+        bashio::log.error "Xpra failed to start!"
+        exit 1
+    fi
+    bashio::log.info "Waiting for Xpra... ($RETRIES attempts remaining)"
+    sleep 2
+done
+
+bashio::log.info "Xpra is ready! Starting nginx..."
+
+exec nginx -g "daemon off;"
+```

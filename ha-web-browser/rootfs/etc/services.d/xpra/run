@@ -1,26 +1,74 @@
+```bash
 #!/usr/bin/with-contenv bashio
+# shellcheck shell=bash
 set -e
 
-BROWSER=$(bashio::config 'browser' 'brave')
-URL=$(bashio::config 'url' 'http://homeassistant.local:8123')
+# Get configuration
+BROWSER=$(bashio::config 'browser')
+URL=$(bashio::config 'url')
+RESOLUTION=$(bashio::config 'resolution')
+COMPRESSION=$(bashio::config 'compression')
 
 bashio::log.info "Starting Xpra with ${BROWSER}..."
+bashio::log.info "Resolution: ${RESOLUTION}"
+bashio::log.info "Compression level: ${COMPRESSION}"
+bashio::log.info "URL: ${URL}"
 
-# Build browser command
+# Set environment variables
+export XDG_RUNTIME_DIR="/run/user/0"
+export XPRA_ENCODING="rgb"
+export XPRA_COMPRESSION="${COMPRESSION}"
+
+# Build browser command based on selection
 if [ "$BROWSER" = "brave" ]; then
-    BROWSER_CMD="brave-browser --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --kiosk $URL"
+    BROWSER_CMD="brave-browser \
+        --no-sandbox \
+        --disable-dev-shm-usage \
+        --disable-gpu \
+        --no-first-run \
+        --disable-features=TranslateUI \
+        --disable-background-timer-throttling \
+        --disable-backgrounding-occluded-windows \
+        --disable-renderer-backgrounding \
+        --kiosk \
+        ${URL}"
 elif [ "$BROWSER" = "opera" ]; then
-    BROWSER_CMD="opera --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --kiosk $URL"
+    BROWSER_CMD="opera \
+        --no-sandbox \
+        --disable-dev-shm-usage \
+        --disable-gpu \
+        --no-first-run \
+        --disable-features=TranslateUI \
+        --disable-background-timer-throttling \
+        --disable-backgrounding-occluded-windows \
+        --disable-renderer-backgrounding \
+        --kiosk \
+        ${URL}"
 fi
 
-# Start Xpra with the browser
-exec xpra start \
+bashio::log.info "Browser command: ${BROWSER_CMD}"
+
+# Start Xpra with HTML5 support
+exec xpra start :100 \
     --bind-tcp=0.0.0.0:10000 \
     --html=on \
     --no-daemon \
-    --start-child="$BROWSER_CMD" \
+    --start="${BROWSER_CMD}" \
     --exit-with-children=yes \
+    --desktop-scaling=${RESOLUTION} \
+    --resize-display=${RESOLUTION} \
+    --encoding=rgb \
+    --compression=${COMPRESSION} \
     --no-pulseaudio \
     --no-mdns \
     --no-notifications \
-    --opengl=no
+    --opengl=no \
+    --webcam=no \
+    --speaker=disabled \
+    --microphone=disabled \
+    --printing=no \
+    --file-transfer=no \
+    --clipboard=yes \
+    --clipboard-direction=both \
+    2>&1
+```
