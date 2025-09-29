@@ -1,11 +1,14 @@
 FROM debian:bookworm-slim
 
+# Install xz-utils FIRST (needed for extracting s6-overlay)
+RUN apt-get update && apt-get install -y xz-utils ca-certificates && rm -rf /var/lib/apt/lists/*
+
 # Install S6 overlay for Home Assistant compatibility
 ARG S6_OVERLAY_VERSION=3.1.5.0
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp
-RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp
-RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-overlay-noarch.tar.xz
+RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && rm /tmp/s6-overlay-noarch.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp/s6-overlay-x86_64.tar.xz
+RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz && rm /tmp/s6-overlay-x86_64.tar.xz
 
 # Install bashio
 RUN apt-get update && apt-get install -y \
@@ -66,10 +69,6 @@ RUN wget -qO- https://deb.opera.com/archive.key | gpg --dearmor -o /usr/share/ke
     && echo "deb [signed-by=/usr/share/keyrings/opera-archive-keyring.gpg] https://deb.opera.com/opera-stable/ stable non-free" > /etc/apt/sources.list.d/opera-archive.list \
     && apt-get update \
     && apt-get install -y opera-stable \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Chromium as fallback
-RUN apt-get update && apt-get install -y chromium \
     && rm -rf /var/lib/apt/lists/*
 
 # Install noVNC
@@ -210,8 +209,8 @@ start_browser() {
                 bashio::log.info "Starting Brave browser"
                 brave-browser $COMMON_FLAGS "$HOMEPAGE" &
             else
-                bashio::log.warning "Brave not found, falling back to Chromium"
-                chromium $COMMON_FLAGS "$HOMEPAGE" &
+                bashio::log.error "Brave browser not found!"
+                exit 1
             fi
             ;;
         opera)
@@ -219,17 +218,13 @@ start_browser() {
                 bashio::log.info "Starting Opera browser"
                 opera $COMMON_FLAGS "$HOMEPAGE" &
             else
-                bashio::log.warning "Opera not found, falling back to Chromium"
-                chromium $COMMON_FLAGS "$HOMEPAGE" &
+                bashio::log.error "Opera browser not found!"
+                exit 1
             fi
             ;;
-        chromium)
-            bashio::log.info "Starting Chromium browser"
-            chromium $COMMON_FLAGS "$HOMEPAGE" &
-            ;;
         *)
-            bashio::log.warning "Unknown browser: $BROWSER, using Brave"
-            brave-browser $COMMON_FLAGS "$HOMEPAGE" &
+            bashio::log.error "Unknown browser: $BROWSER. Please choose 'brave' or 'opera'"
+            exit 1
             ;;
     esac
     BROWSER_PID=$!
