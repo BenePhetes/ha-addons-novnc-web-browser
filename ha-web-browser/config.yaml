@@ -1,5 +1,5 @@
 name: "Web Browser (noVNC)"
-version: "0.0.8"
+version: "0.0.1"
 slug: "web_browser_novnc"
 description: "Web browser accessible through noVNC in Home Assistant dashboard with Brave, Opera, and Chromium support"
 url: "https://github.com/BenePhetes/ha-addons-novnc-web-browser"
