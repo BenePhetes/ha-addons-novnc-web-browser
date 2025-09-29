@@ -1,5 +1,4 @@
 
-```markdown
 # Web Browser Add-on Documentation
 
 ## What is this add-on?
@@ -53,25 +52,19 @@ Lower compression is better for:
 ## Examples
 
 ### Example 1: Home Assistant Dashboard
-```yaml
 browser: brave
 url: http://homeassistant.local:8123
 resolution: 1920x1080
 compression: 3
-```
 
 ### Example 2: Remote Access
-```yaml
 browser: brave
 url: https://grafana.example.com
 resolution: 1280x720
 compression: 8
-```
 
 ### Example 3: Low-Power Device
-```yaml
 browser: opera
 url: http://homeassistant.local:8123
 resolution: 1280x720
 compression: 7
-```

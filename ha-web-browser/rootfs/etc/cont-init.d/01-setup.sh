@@ -1,4 +1,3 @@
-```bash
 #!/usr/bin/with-contenv bashio
 # shellcheck shell=bash
 set -e
@@ -42,4 +41,3 @@ mkdir -p "${XDG_RUNTIME_DIR}"
 chmod 700 "${XDG_RUNTIME_DIR}"
 
 bashio::log.info "All dependencies checked successfully!"
-```
