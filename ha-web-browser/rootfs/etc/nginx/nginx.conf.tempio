@@ -1,0 +1,24 @@
+worker_processes 1;
+daemon off; # Run in the foreground for S6 to manage
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    # This port is dynamically assigned by Home Assistant Ingress
+    server {
+        listen {{ .port }} default_server;
+        server_name _;
+
+        # Main location for noVNC and WebSocket
+        location / {
+            proxy_pass http://127.0.0.1:6080; # Points to our internal websockify service
+            proxy_http_version 1.1;
+
+            # Required for WebSocket support
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+    }
+}
