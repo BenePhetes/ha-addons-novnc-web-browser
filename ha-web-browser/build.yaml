@@ -1,7 +1,7 @@
 # /build.yaml
 build_from:
-  aarch64: "ghcr.io/hassio-addons/base-debian:12.3.0"
-  amd64: "ghcr.io/hassio-addons/base-debian:12.3.0"
-  armv7: "ghcr.io/hassio-addons/base-debian:12.3.0"
+  aarch64: "ghcr.io/hassio-addons/base-debian:stable"
+  amd64: "ghcr.io/hassio-addons/base-debian:stable"
+  armv7: "ghcr.io/hassio-addons/base-debian:stable"
 args:
   TEMPIO_VERSION: "2021.09.0"
