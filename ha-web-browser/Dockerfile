@@ -4,16 +4,15 @@ FROM debian:bookworm-slim
 # Set frontend to noninteractive to avoid prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install S6 overlay for Home Assistant compatibility
+# Set S6 overlay version argument
 ARG S6_OVERLAY_VERSION=3.1.5.0
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-overlay-noarch.tar.xz
-RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && rm /tmp/s6-overlay-noarch.tar.xz
-ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp/s6-overlay-x86_64.tar.xz
-RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz && rm /tmp/s6-overlay-x86_64.tar.xz
 
 # Install all required packages, bashio, and browsers in a single layer for efficiency
+# This MUST come before extracting S6, as it includes the 'xz-utils' package
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        # For extracting .tar.xz files (THE FIX)
+        xz-utils \
         # For bashio & browsers
         curl \
         gnupg \
@@ -59,13 +58,18 @@ RUN apt-get update \
     # Clean up
     && rm -rf /tmp/* /var/lib/apt/lists/*
 
+# Now that xz-utils is installed, add and extract S6 overlay
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz /tmp/s6-overlay-noarch.tar.xz
+RUN tar -C / -Jxpf /tmp/s6-overlay-noarch.tar.xz && rm /tmp/s6-overlay-noarch.tar.xz
+ADD https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-x86_64.tar.xz /tmp/s6-overlay-x86_64.tar.xz
+RUN tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz && rm /tmp/s6-overlay-x86_64.tar.xz
+
 # Install noVNC
 WORKDIR /opt
 RUN git clone https://github.com/novnc/noVNC.git novnc \
     && git clone https://github.com/novnc/websockify.git novnc/utils/websockify
 
-# --- BEST PRACTICE FIX ---
-# Copy the run script into the container instead of building it with printf
+# Copy the run script into the container
 COPY run.sh /
 RUN chmod +x /run.sh
 
@@ -79,6 +83,5 @@ ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
 # Expose port for noVNC
 EXPOSE 6080
 
-# --- PRIMARY FIX ---
-# The CMD is removed. S6 overlay will automatically execute /run.sh by default.
+# Set the entrypoint. S6 overlay will automatically execute /run.sh
 ENTRYPOINT ["/init"]
