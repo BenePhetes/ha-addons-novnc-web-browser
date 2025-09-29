@@ -1,61 +1,20 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-debian:latest
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:latest
 FROM $BUILD_FROM
 
 # Install required packages
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
     xvfb \
     x11vnc \
     openbox \
+    chromium \
     python3 \
-    python3-pip \
+    py3-pip \
     git \
     bash \
     curl \
-    wget \
-    gnupg \
-    apt-transport-https \
-    ca-certificates \
-    dbus-x11 \
-    fonts-liberation \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libatspi2.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxkbcommon0 \
-    libxrandr2 \
-    xdg-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Brave Browser
-RUN curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg | gpg --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" > /etc/apt/sources.list.d/brave-browser-release.list \
-    && apt-get update \
-    && apt-get install -y brave-browser \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Opera Browser
-RUN wget -qO- https://deb.opera.com/archive.key | gpg --dearmor -o /usr/share/keyrings/opera-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/opera-archive-keyring.gpg] https://deb.opera.com/opera-stable/ stable non-free" > /etc/apt/sources.list.d/opera-archive.list \
-    && apt-get update \
-    && apt-get install -y opera-stable \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Chromium as fallback
-RUN apt-get update && apt-get install -y chromium \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install websockify
-RUN pip3 install --no-cache-dir websockify
+    websockify \
+    dbus \
+    && rm -rf /var/cache/apk/*
 
 # Install noVNC
 WORKDIR /opt
@@ -70,12 +29,10 @@ RUN cat > /run.sh << 'EOF'
 RESOLUTION=$(bashio::config 'resolution' '1920x1080')
 HOMEPAGE=$(bashio::config 'homepage' 'https://google.com')
 PASSWORD=$(bashio::config 'password')
-BROWSER=$(bashio::config 'browser' 'brave')
 
 bashio::log.info "Starting Web Browser with noVNC..."
 bashio::log.info "Resolution: $RESOLUTION"
 bashio::log.info "Homepage: $HOMEPAGE"
-bashio::log.info "Browser: $BROWSER"
 
 # Parse resolution
 IFS='x' read -ra RES <<< "$RESOLUTION"
@@ -112,12 +69,13 @@ bashio::log.info "Xvfb started successfully (PID: $XVFB_PID)"
 openbox --sm-disable &
 sleep 1
 
-# Prepare VNC command
+# Prepare VNC command - simplified approach
 bashio::log.info "Starting VNC server..."
 
 # Add password if configured
 if bashio::config.has_value 'password' && [ -n "$PASSWORD" ]; then
     bashio::log.info "Setting up VNC password protection"
+    # Use x11vnc's built-in password option instead of storing to file
     x11vnc -display :1 -listen localhost -xkb -forever -shared -passwd "$PASSWORD" -quiet &
 else
     bashio::log.info "No VNC password set"
@@ -154,8 +112,10 @@ fi
 
 bashio::log.info "noVNC started successfully (PID: $NOVNC_PID)"
 
-# Common browser flags
-COMMON_FLAGS="--no-sandbox \
+# Start Chromium browser with extensive compatibility flags
+bashio::log.info "Starting Chromium browser"
+chromium \
+    --no-sandbox \
     --disable-dev-shm-usage \
     --disable-gpu \
     --disable-gpu-sandbox \
@@ -164,59 +124,28 @@ COMMON_FLAGS="--no-sandbox \
     --disable-backgrounding-occluded-windows \
     --disable-renderer-backgrounding \
     --disable-features=TranslateUI,VizDisplayCompositor \
+    --disable-extensions \
+    --disable-web-security \
     --disable-infobars \
     --no-first-run \
     --no-default-browser-check \
     --start-maximized \
     --window-size=${WIDTH},${HEIGHT} \
     --disable-logging \
-    --log-level=3"
-
-# Function to start browser
-start_browser() {
-    case "$BROWSER" in
-        brave)
-            if command -v brave-browser &> /dev/null; then
-                bashio::log.info "Starting Brave browser"
-                brave-browser $COMMON_FLAGS "$HOMEPAGE" &
-            else
-                bashio::log.warning "Brave not found, falling back to Chromium"
-                chromium $COMMON_FLAGS "$HOMEPAGE" &
-            fi
-            ;;
-        opera)
-            if command -v opera &> /dev/null; then
-                bashio::log.info "Starting Opera browser"
-                opera $COMMON_FLAGS "$HOMEPAGE" &
-            else
-                bashio::log.warning "Opera not found, falling back to Chromium"
-                chromium $COMMON_FLAGS "$HOMEPAGE" &
-            fi
-            ;;
-        chromium)
-            bashio::log.info "Starting Chromium browser"
-            chromium $COMMON_FLAGS "$HOMEPAGE" &
-            ;;
-        *)
-            bashio::log.warning "Unknown browser: $BROWSER, using Brave"
-            brave-browser $COMMON_FLAGS "$HOMEPAGE" &
-            ;;
-    esac
-    BROWSER_PID=$!
-}
-
-# Start browser
-start_browser
+    --log-level=3 \
+    --silent \
+    "$HOMEPAGE" &
+BROWSER_PID=$!
 
 sleep 2
 
 # Check if browser started
 if ! kill -0 $BROWSER_PID 2>/dev/null; then
-    bashio::log.error "Failed to start browser"
+    bashio::log.error "Failed to start Chromium browser"
     exit 1
 fi
 
-bashio::log.info "Browser started successfully (PID: $BROWSER_PID)"
+bashio::log.info "Chromium started successfully (PID: $BROWSER_PID)"
 bashio::log.info "All services started successfully!"
 bashio::log.info "Access via Home Assistant UI or http://YOUR_HA_IP:6080/vnc.html"
 
@@ -246,7 +175,28 @@ while true; do
     fi
     if ! kill -0 $BROWSER_PID 2>/dev/null; then
         bashio::log.warning "Browser died, restarting..."
-        start_browser
+        chromium \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-gpu \
+            --disable-gpu-sandbox \
+            --disable-software-rasterizer \
+            --disable-background-timer-throttling \
+            --disable-backgrounding-occluded-windows \
+            --disable-renderer-backgrounding \
+            --disable-features=TranslateUI,VizDisplayCompositor \
+            --disable-extensions \
+            --disable-web-security \
+            --disable-infobars \
+            --no-first-run \
+            --no-default-browser-check \
+            --start-maximized \
+            --window-size=${WIDTH},${HEIGHT} \
+            --disable-logging \
+            --log-level=3 \
+            --silent \
+            "$HOMEPAGE" &
+        BROWSER_PID=$!
     fi
     sleep 10
 done
