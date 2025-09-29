@@ -1,35 +1,24 @@
-# /Dockerfile
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
-# Set shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Set environment variables
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
 
-# Install required packages, browsers, and all dependencies
 RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
         # Nginx for Ingress
         nginx \
-        # For extracting .tar.xz files
-        xz-utils \
-        # For VNC and virtual display
+        # Xpra - replaces Xvfb + x11vnc + noVNC!
+        xpra \
         xvfb \
-        x11vnc \
-        openbox \
-        # For noVNC
-        python3 \
-        python3-websockify \
-        git \
         # For adding repositories
         curl \
         gnupg \
         wget \
-        # --- CRITICAL BROWSER DEPENDENCIES ---
+        # Browser dependencies
         dbus-x11 \
         fonts-liberation \
         libasound2 \
@@ -49,13 +38,13 @@ RUN \
         libxrandr2 \
         libxss1 \
         xdg-utils \
-    # Add Brave Browser repository and key
+    # Add Brave Browser
     && curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg | gpg --dearmor > /usr/share/keyrings/brave-browser-archive-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" > /etc/apt/sources.list.d/brave-browser-release.list \
-    # Add Opera Browser repository and key
+    # Add Opera Browser
     && wget -qO- https://deb.opera.com/archive.key | gpg --dearmor > /usr/share/keyrings/opera-archive-keyring.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/opera-archive-keyring.gpg] https://deb.opera.com/opera-stable/ stable non-free" > /etc/apt/sources.list.d/opera-archive.list \
-    # Update package lists again and install browsers
+    # Install browsers
     && apt-get update \
     && apt-get install -y --no-install-recommends \
         brave-browser \
@@ -64,8 +53,7 @@ RUN \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy root filesystem
 COPY rootfs /
 
-# Ensure all service scripts are executable
-RUN chmod +x -R /etc/services.d
+RUN chmod +x /etc/services.d/*/run \
+    && chmod +x /etc/cont-init.d/*.sh

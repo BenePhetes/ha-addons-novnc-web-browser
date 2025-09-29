@@ -1,0 +1,26 @@
+#!/usr/bin/with-contenv bashio
+set -e
+
+BROWSER=$(bashio::config 'browser' 'brave')
+URL=$(bashio::config 'url' 'http://homeassistant.local:8123')
+
+bashio::log.info "Starting Xpra with ${BROWSER}..."
+
+# Build browser command
+if [ "$BROWSER" = "brave" ]; then
+    BROWSER_CMD="brave-browser --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --kiosk $URL"
+elif [ "$BROWSER" = "opera" ]; then
+    BROWSER_CMD="opera --no-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --kiosk $URL"
+fi
+
+# Start Xpra with the browser
+exec xpra start \
+    --bind-tcp=0.0.0.0:10000 \
+    --html=on \
+    --no-daemon \
+    --start-child="$BROWSER_CMD" \
+    --exit-with-children=yes \
+    --no-pulseaudio \
+    --no-mdns \
+    --no-notifications \
+    --opengl=no

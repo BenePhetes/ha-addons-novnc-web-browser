@@ -1,40 +1,20 @@
-name: "Web Browser (noVNC)"
-version: "0.0.4"
-slug: "web_browser_novnc"
-description: "Web browser accessible through noVNC in Home Assistant dashboard with Brave and Opera support"
-url: "https://github.com/BenePhetes/ha-addons-novnc-web-browser"
+# /config.yaml
+name: "Web Browser (Xpra)"
+version: "1.0.0"
+slug: "web-browser-xpra"
+description: "High-performance web browser with Xpra"
 arch:
-  - amd64
   - aarch64
+  - amd64
   - armv7
-startup: application
-boot: manual
 init: false
-ports:
-  6080/tcp: 6080
-ports_description:
-  6080/tcp: "noVNC web interface"
-webui: "http://[HOST]:[PORT:6080]/vnc.html?autoconnect=true&resize=scale"
+boot: auto
 ingress: true
-ingress_port: 6080
-ingress_entry: "/vnc.html?autoconnect=true&resize=scale"
+ingress_port: 8099
 panel_icon: mdi:web
-panel_title: "Web Browser"
 options:
-  resolution: "1920x1080"
-  homepage: "https://google.com"
   browser: "brave"
-  kiosk_mode: false
-  password: ""
-  scaling: "remote"
-  compression: 6
-  quality: 6
+  url: "http://homeassistant.local:8123"
 schema:
-  resolution: "str"
-  homepage: "url"
-  browser: "list(brave|opera)"
-  kiosk_mode: "bool"
-  password: "str?"
-  scaling: "list(off|local|remote)"
-  compression: "int(0,9)"
-  quality: "int(0,9)"
+  browser: list(brave|opera)
+  url: str
