@@ -1,24 +1,65 @@
-worker_processes 1;
-daemon off; # Run in the foreground for S6 to manage
-
 events {
-    worker_connections 1024;
+   worker_connections 1024;
 }
 
+
 http {
-    # This port is dynamically assigned by Home Assistant Ingress
-    server {
-        listen {{ .port }} default_server;
-        server_name _;
-
-        # Main location for noVNC and WebSocket
-        location / {
-            proxy_pass http://127.0.0.1:6080; # Points to our internal websockify service
-            proxy_http_version 1.1;
-
-            # Required for WebSocket support
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-        }
-    }
+   include       /etc/nginx/mime.types;
+   default_type  application/octet-stream;
+  
+   # Logging
+   access_log /var/log/nginx/access.log;
+   error_log /var/log/nginx/error.log;
+  
+   # Gzip compression
+   gzip on;
+   gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+  
+   # WebSocket upgrade
+   map $http_upgrade $connection_upgrade {
+       default upgrade;
+       '' close;
+   }
+  
+   upstream websockify {
+       server 127.0.0.1:6080;
+   }
+  
+   server {
+       listen 80 default_server;
+       server_name _;
+      
+       # Main noVNC interface
+       location / {
+           proxy_pass http://websockify;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection $connection_upgrade;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+          
+           # Remove frame options to allow embedding
+           proxy_hide_header X-Frame-Options;
+           add_header X-Frame-Options "SAMEORIGIN" always;
+          
+           # Timeout settings
+           proxy_read_timeout 86400;
+           proxy_send_timeout 86400;
+       }
+      
+       # Health check endpoint
+       location /health {
+           access_log off;
+           return 200 "healthy\n";
+           add_header Content-Type text/plain;
+       }
+      
+       # Static files for noVNC
+       location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+           expires 1y;
+           add_header Cache-Control "public, immutable";
+       }
+   }
 }

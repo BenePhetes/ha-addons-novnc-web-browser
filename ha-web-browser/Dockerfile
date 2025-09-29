@@ -9,10 +9,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
 
-# Install required packages and browsers
+# Install required packages, browsers, and all dependencies
 RUN \
     apt-get update \
     && apt-get install -y --no-install-recommends \
+        # Nginx for Ingress
+        nginx \
         # For extracting .tar.xz files
         xz-utils \
         # For VNC and virtual display
@@ -27,14 +29,24 @@ RUN \
         curl \
         gnupg \
         wget \
-        # Browser dependencies
+        # --- CRITICAL BROWSER DEPENDENCIES ---
         dbus-x11 \
         fonts-liberation \
         libasound2 \
         libatk-bridge2.0-0 \
         libatspi2.0-0 \
+        libcups2 \
+        libdbus-1-3 \
+        libdrm2 \
+        libgbm1 \
         libgtk-3-0 \
+        libnspr4 \
         libnss3 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxfixes3 \
+        libxkbcommon0 \
+        libxrandr2 \
         libxss1 \
         xdg-utils \
     # Add Brave Browser repository and key
@@ -54,4 +66,6 @@ RUN \
 
 # Copy root filesystem
 COPY rootfs /
+
+# Ensure all service scripts are executable
 RUN chmod +x -R /etc/services.d
