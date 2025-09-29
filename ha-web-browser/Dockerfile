@@ -54,3 +54,4 @@ RUN \
 
 # Copy root filesystem
 COPY rootfs /
+RUN chmod +x -R /etc/services.d
